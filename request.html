@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Friend Requests</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .request-section input {
+            width: 70%;
+            padding: 10px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <h1>Friend Requests</h1>
+        <a href="friends.html" class="back-button">← Back to Friends</a>
+    </header>
+
+    <main class="request-container">
+        <div class="request-section">
+            <h3>Send New Request</h3>
+            <input type="email" id="friend-email" placeholder="Enter friend's email">
+            <button onclick="sendFriendRequest()" class="button">Send Request</button>
+            <div id="error-message"></div>
+        </div>
+
+        <nav class="request-nav">
+            <a href="sent.html" class="menu-link">View Sent Requests</a>
+            <a href="received.html" class="menu-link">View Received Requests</a>
+        </nav>
+    </main>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyDf3hFpKxOFGWlF1HiyYP7D8HR9qaSgFHk",
+          authDomain: "cartalk-6bcc4.firebaseapp.com",
+          projectId: "cartalk-6bcc4",
+          storageBucket: "cartalk-6bcc4.appspot.com",
+          messagingSenderId: "46232110190",
+          appId: "1:46232110190:web:4a25265ec816109d11927f"
+        };
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        async function sendFriendRequest() {
+            const email = document.getElementById('friend-email').value.trim().toLowerCase();
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.innerHTML = '';
+
+            if (!email) {
+                errorDiv.innerHTML = '<p style="color: red;">Please enter a valid email</p>';
+                return;
+            }
+
+            try {
+                const currentUser = auth.currentUser;
+                if (!currentUser) {
+                    window.location.href = 'log.html';
+                    return;
+                }
+
+                const snapshot = await db.collection('users')
+                    .where('email', '==', email)
+                    .get();
+
+                if (snapshot.empty) {
+                    throw new Error('User not found');
+                }
+
+                if (snapshot.docs[0].id === currentUser.uid) {
+                    throw new Error('Cannot add yourself as friend');
+                }
+
+                const receiverId = snapshot.docs[0].id;
+
+                const existingRequest = await db.collection('friendRequests')
+                    .where('sender', '==', currentUser.uid)
+                    .where('receiver', '==', receiverId)
+                    .get();
+
+                if (!existingRequest.empty) {
+                    throw new Error('Request already sent to this user');
+                }
+
+                const alreadyFriends = await db.collection('friends')
+                    .where('user1', '==', currentUser.uid)
+                    .where('user2', '==', receiverId)
+                    .get();
+
+                if (!alreadyFriends.empty) {
+                    throw new Error('You are already friends with this user');
+                }
+
+                await db.collection('friendRequests').add({
+                    sender: currentUser.uid,
+                    receiver: receiverId,
+                    status: 'pending',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                alert('Request sent successfully!');
+                document.getElementById('friend-email').value = '';
+            } catch (error) {
+                console.error("Error sending request:", error);
+                errorDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                window.location.href = 'log.html';
+            }
+        });
+    </script>
+</body>
+</html>
