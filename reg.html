@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register - Confy Art</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <header>
+    <h1>Create Your Account</h1>
+  </header>
+
+  <main class="form-container">
+    <form id="registrationForm">
+      <div class="form-group">
+        <label for="username">Username:</label>
+        <input type="text" id="username" required placeholder="Choose a username" />
+        <small>4-20 characters (letters, numbers, underscores only)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input type="email" id="email" required placeholder="your.email@example.com" />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" required minlength="8" placeholder="At least 8 characters" />
+      </div>
+
+      <div class="form-group">
+        <label for="confirm-password">Confirm Password:</label>
+        <input type="password" id="confirm-password" required placeholder="Retype your password" />
+      </div>
+
+      <button type="submit" class="button submit-button">Create Account</button>
+      <div id="error-message"></div>
+    </form>
+
+    <div class="login-link">
+      <p>Already have an account? <a href="log.html">Log in here</a></p>
+    </div>
+  </main>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDf3hFpKxOFGWlF1HiyYP7D8HR9qaSgFHk",
+      authDomain: "cartalk-6bcc4.firebaseapp.com",
+      projectId: "cartalk-6bcc4",
+      storageBucket: "cartalk-6bcc4.appspot.com",
+      messagingSenderId: "46232110190",
+      appId: "1:46232110190:web:4a25265ec816109d11927f"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    document.getElementById('registrationForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const errorDiv = document.getElementById('error-message');
+      errorDiv.innerHTML = '';
+
+      try {
+        submitBtn.disabled = true;
+
+        const username = document.getElementById('username').value.trim().toLowerCase();
+        const email = document.getElementById('email').value.trim().toLowerCase();
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+
+        if (!email || !password || !username) {
+          throw new Error("All fields are required");
+        }
+        if (password !== confirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+        if (password.length < 8) {
+          throw new Error("Password must be at least 8 characters");
+        }
+        if (!/^[a-zA-Z0-9_]{4,20}$/.test(username)) {
+          throw new Error("Username must be 4–20 characters (letters, numbers, underscores only)");
+        }
+
+        const usernameDoc = await db.collection('usernames').doc(username).get();
+        if (usernameDoc.exists) throw new Error("Username already taken");
+
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const uid = userCredential.user.uid;
+
+        const batch = db.batch();
+        const userRef = db.collection('users').doc(uid);
+        const usernameRef = db.collection('usernames').doc(username);
+
+        batch.set(userRef, {
+          username: username,
+          displayName: username,
+          displayNameLower: username.toLowerCase(),
+          email: email,
+          emailLower: email.toLowerCase(),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        batch.set(usernameRef, {
+          uid: uid,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+        alert('Account created successfully!');
+        window.location.href = 'index.html';
+
+      } catch (error) {
+        console.error("Registration error:", error);
+        let message = error.message;
+        
+        if (error.code === 'auth/email-already-in-use') {
+          message = "Email already registered";
+        } else if (error.code === 'auth/weak-password') {
+          message = "Password is too weak";
+        }
+        
+        errorDiv.innerHTML = `<p style=\"color: red;\">Error: ${message}</p>`;
+        
+        if (auth.currentUser) {
+          try {
+            await auth.currentUser.delete();
+          } catch (deleteError) {
+            console.error("Cleanup error:", deleteError);
+          }
+        }
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
