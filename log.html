@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <!-- SEO Meta Tags -->
+  <title>Login - ConfyChat by Confy Art</title>
+  <meta name="description" content="Login to ConfyChat, the creative and social platform built by Byishimo Confiance.">
+  <meta name="keywords" content="confychat, confy art, cartalk, chat login, confy, connect, tutorials, tech rwanda">
+  <meta name="author" content="Byishimo Confiance">
+  <meta property="og:title" content="ConfyChat Login - By Confy Art">
+  <meta property="og:description" content="Login and connect with friends on ConfyChat, a platform for creative ideas and conversations.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://confychat.netlify.app/log.html">
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Welcome Back</h1>
+  </header>
+
+  <main class="form-container">
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="identifier">Email or Username:</label>
+        <input type="text" id="identifier" required placeholder="Enter email or username" />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" required placeholder="Enter your password" />
+      </div>
+
+      <button type="submit" class="button submit-button">Sign In</button>
+      <div id="error-message"></div>
+    </form>
+
+    <div class="signup-link">
+      <p>New user? <a href="reg.html">Create account</a></p>
+    </div>
+  </main>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDf3hFpKxOFGWlF1HiyYP7D8HR9qaSgFHk",
+      authDomain: "cartalk-6bcc4.firebaseapp.com",
+      projectId: "cartalk-6bcc4",
+      storageBucket: "cartalk-6bcc4.appspot.com",
+      messagingSenderId: "46232110190",
+      appId: "1:46232110190:web:4a25265ec816109d11927f"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const errorDiv = document.getElementById('error-message');
+      errorDiv.innerHTML = '';
+      submitBtn.disabled = true;
+
+      const identifier = document.getElementById('identifier').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!identifier || !password) {
+        errorDiv.innerHTML = '<p style="color: red;">Please fill in all fields</p>';
+        submitBtn.disabled = false;
+        return;
+      }
+
+      let email = identifier;
+
+      try {
+        if (!identifier.includes('@')) {
+          const usernameDoc = await db.collection('usernames').doc(identifier).get();
+          if (!usernameDoc.exists) throw new Error("Username not found");
+
+          const uid = usernameDoc.data().uid;
+          const userDoc = await db.collection('users').doc(uid).get();
+          if (!userDoc.exists) throw new Error("Account not found");
+
+          email = userDoc.data().email;
+          if (!email) throw new Error("Email field is missing in account");
+        }
+
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+
+        const displayName = user.displayName || "";
+        const userEmail = user.email || "";
+
+        await db.collection('users').doc(user.uid).update({
+          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(() => {
+          return db.collection('users').doc(user.uid).set({
+            displayName,
+            displayNameLower: displayName.toLowerCase(),
+            email: userEmail,
+            emailLower: userEmail.toLowerCase(),
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        });
+
+        window.location.href = "index.html";
+
+      } catch (error) {
+        console.error("Login error:", error);
+        let message = "Login failed: ";
+
+        switch (error.code) {
+          case 'auth/user-not-found':
+            message += "User not found.";
+            break;
+          case 'auth/wrong-password':
+            message += "Incorrect password.";
+            break;
+          case 'auth/invalid-email':
+            message += "Invalid email format.";
+            break;
+          case 'auth/too-many-requests':
+            message += "Too many login attempts. Please try again later.";
+            break;
+          default:
+            message += error.message;
+        }
+
+        errorDiv.innerHTML = `<p style="color: red;">${message}</p>`;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
