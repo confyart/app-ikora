@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confy Art - Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    #loader {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.5rem;
+      font-weight: bold;
+      z-index: 1000;
+    }
+    #dashboard {
+      display: none;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loader">Loading...</div>
+
+  <div id="dashboard">
+    <header class="dashboard-header">
+      <h1>Your Dashboard</h1>
+      <button id="logoutBtn" class="button">Log Out</button>
+    </header>
+
+    <nav class="dashboard-nav">
+      <a href="index.html">Home</a>
+      <a href="friends.html">Friends</a>
+      <a href="notification.html">Notifications</a>
+      <a href="videos.html">Videos</a>
+      <a href="market.html">Market</a>
+    </nav>
+
+    <main class="dashboard-content">
+      <p>Welcome to a channel to build a real relationship! 🎨</p>
+    </main>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDf3hFpKxOFGWlF1HiyYP7D8HR9qaSgFHk",
+      authDomain: "cartalk-6bcc4.firebaseapp.com",
+      projectId: "cartalk-6bcc4",
+      storageBucket: "cartalk-6bcc4.appspot.com",
+      messagingSenderId: "46232110190",
+      appId: "1:46232110190:web:4a25265ec816109d11927f"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const loader = document.getElementById('loader');
+    const dashboard = document.getElementById('dashboard');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = 'log.html';
+        return;
+      }
+
+      try {
+        const userRef = db.collection('users').doc(user.uid);
+        const userDoc = await userRef.get();
+
+        if (!userDoc.exists) {
+          await userRef.set({
+            username: user.displayName || "User",
+            displayName: user.displayName || "User",
+            displayNameLower: (user.displayName || "User").toLowerCase(),
+            email: user.email || "",
+            emailLower: (user.email || "").toLowerCase(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          const data = userDoc.data();
+          const updates = {};
+
+          if (!data.displayNameLower && data.displayName) {
+            updates.displayNameLower = data.displayName.toLowerCase();
+          }
+          if (!data.emailLower && data.email) {
+            updates.emailLower = data.email.toLowerCase();
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await userRef.update(updates);
+          }
+        }
+
+        loader.style.display = 'none';
+        dashboard.style.display = 'block';
+
+      } catch (err) {
+        console.error("Dashboard init error:", err);
+        alert("Something went wrong. Please login again.");
+        auth.signOut();
+      }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to log out?')) {
+        await auth.signOut();
+        window.location.href = 'log.html';
+      }
+    });
+  </script>
+</body>
+</html>
